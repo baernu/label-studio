@@ -1,64 +1,48 @@
+
+
+
+version: "3.3"
 services:
-  nginx:
-    build: .
+  label_studio:
     image: heartexlabs/label-studio:latest
-    restart: unless-stopped
+    container_name: label_studio
     ports:
-      - "8080:8085"
-      - "8081:8086"
-    depends_on:
-      - app
-    environment:
-      - LABEL_STUDIO_HOST=${LABEL_STUDIO_HOST:-}
-    #   Optional: Specify SSL termination certificate & key
-    #   Just drop your cert.pem and cert.key into folder 'deploy/nginx/certs'
-    #      - NGINX_SSL_CERT=/certs/cert.pem
-    #      - NGINX_SSL_CERT_KEY=/certs/cert.key
+      - 8080:8080
     volumes:
-      - ./mydata:/label-studio/data:rw
-      - ./deploy/nginx/certs:/certs:ro
-    #   Optional: Override nginx default conf
-    #      - ./deploy/my.conf:/etc/nginx/nginx.conf
-    command: nginx
-
-  app:
-    stdin_open: true
-    tty: true
-    build: .
-    image: heartexlabs/label-studio:latest
-    restart: unless-stopped
-    expose:
-      - "8000"
+      - ./mydata:/label-studio/data
     depends_on:
-      - db
+      - ml_backend  # Ensure the ML backend starts first
+    networks:
+      - label_studio_networks
     environment:
-      - DJANGO_DB=default
-      - POSTGRE_NAME=postgres
-      - POSTGRE_USER=postgres
-      - POSTGRE_PASSWORD=
-      - POSTGRE_PORT=5432
-      - POSTGRE_HOST=db
-      - LABEL_STUDIO_HOST=${LABEL_STUDIO_HOST:-}
-      - JSON_LOG=1
-    #      - LOG_LEVEL=DEBUG
-    volumes:
-      - ./mydata:/label-studio/data:rw
-    command: label-studio-uwsgi
-
+      - DJANGO_SETTINGS_MODULE=core.settings.label_studio
+      - ALLOWED_HOSTS=label_studio,localhost,127.0.0.1,172.22.0.3,*
+      - DEBUG=true
+      - MEDIA_ALLOW_PUBLIC_ACCESS=True
   db:
     image: pgautoupgrade/pgautoupgrade:13-alpine
     hostname: db
     restart: unless-stopped
-    # Optional: Enable TLS on PostgreSQL
-    # Just drop your server.crt and server.key into folder 'deploy/pgsql/certs'
-    # NOTE: Both files must have permissions u=rw (0600) or less
-    #    command: >
-    #      -c ssl=on
-    #      -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
-    #      -c ssl_key_file=/var/lib/postgresql/certs/server.key
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
       - POSTGRES_USER=postgres
+
+  ml_backend:
+    build:
+      context: ./ml_backend  # Path to the directory containing the Dockerfile
+    container_name: ml_backend
+    ports:
+      - 9090:9090
+    networks:
+      - label_studio_networks
     volumes:
-      - ${POSTGRES_DATA_DIR:-./postgres-data}:/var/lib/postgresql/data
-      - ./deploy/pgsql/certs:/var/lib/postgresql/certs:ro
+      - ./logs:/app/logs  # Ensure logs are stored outside the container
+
+networks:
+  label_studio_networks:
+    driver: bridge
+
+
+
+volumes:
+  mydata:
