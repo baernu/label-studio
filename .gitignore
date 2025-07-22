@@ -84,3 +84,8 @@ docker-compose.override.yml
 CLAUDE.local.md
 web/libs/editor/tests/coverage
 .cache
+logs/
+ml_backend/runs/
+*.onnx
+mydata_backup*/
+
