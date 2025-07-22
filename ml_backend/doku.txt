@@ -1,0 +1,8 @@
+// register new ml backend with correct project number
+
+curl -X POST http://localhost:8080/api/ml   -H 'Authorization: Token 676c739104a47a882f6e3596b28f9efa75cf9395'   -H 'Content-Type: application/json'   -d '{
+    "url": "http://ml_backend:9090",
+    "project": 6,
+    "title": "YOLOX Letters",
+    "description": "YOLOX ONNX backend for letter detection"
+  }'

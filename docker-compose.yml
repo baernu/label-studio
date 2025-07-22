@@ -16,9 +16,10 @@ services:
       - label_studio_networks
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings.label_studio
-      - ALLOWED_HOSTS=label_studio,localhost,127.0.0.1,172.22.0.3,*
+      - DJANGO_ALLOWED_HOSTS=label_studio,localhost,127.0.0.1,172.22.0.3,*
       - DEBUG=true
       - MEDIA_ALLOW_PUBLIC_ACCESS=True
+
   db:
     image: pgautoupgrade/pgautoupgrade:13-alpine
     hostname: db
@@ -26,6 +27,11 @@ services:
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
       - POSTGRES_USER=postgres
+
+#    environment:
+#      - DJANGO_SETTINGS_MODULE=core.settings.label_studio
+#      - ALLOWED_HOSTS=*
+
 
   ml_backend:
     build:
