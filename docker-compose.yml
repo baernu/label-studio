@@ -16,7 +16,7 @@ services:
       - label_studio_networks
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings.label_studio
-      - DJANGO_ALLOWED_HOSTS=label_studio,localhost,127.0.0.1,172.22.0.3,*
+      - DJANGO_ALLOWED_HOSTS=label_studio,localhost,127.0.0.1,172.22.0.3,172.31.0.2,*
       - DEBUG=true
       - MEDIA_ALLOW_PUBLIC_ACCESS=True
 

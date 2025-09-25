@@ -83,12 +83,11 @@ def decode_output(raw_output):
     boxes = np.concatenate([xy, wh], axis=1)
     return boxes, scores
 
+
 def postprocess_yolox_output(boxes, scores, conf_thres, nms_thres, class_names, scale, orig_size, input_size):
     """
     Applies confidence threshold and NMS, then formats predictions for Label Studio.
     """
-
-
     cls_ids = np.argmax(scores, axis=1)
     cls_conf = scores[np.arange(len(scores)), cls_ids]
     mask = cls_conf > conf_thres
@@ -110,17 +109,63 @@ def postprocess_yolox_output(boxes, scores, conf_thres, nms_thres, class_names, 
 
     w_orig, h_orig = orig_size
     results = []
+    # for i in keep:
+    #     x1, y1, x2, y2 = bboxes_xyxy[i]
+    #
+    #     # ✅ Properly map back to original image size using the resize scale
+    #     x1 = x1 / scale
+    #     x2 = x2 / scale
+    #     y1 = y1 / scale
+    #     y2 = y2 / scale
+    #
+    #     # ✅ Clip to original image dimensions
+    #     # x1 = np.clip(x1, 0, w_orig)
+    #     # x2 = np.clip(x2, 0, w_orig)
+    #     # y1 = np.clip(y1, 0, h_orig)
+    #     # y2 = np.clip(y2, 0, h_orig)
+    #
+    #     width = x2 - x1
+    #     height = y2 - y1
+    #
+    #     results.append({
+    #         "from_name": "label",
+    #         "to_name": "image",
+    #         "type": "rectanglelabels",
+    #         "original_width": w_orig,
+    #         "original_height": h_orig,
+    #         "image_rotation": 0,
+    #         "score": float(cls_conf[i]),
+    #         "value": {
+    #             "x": x1 / w_orig * 100,
+    #             "y": y1 / h_orig * 100,
+    #             "width": width / w_orig * 100,
+    #             "height": height / h_orig * 100,
+    #             "rectanglelabels": [class_names[cls_ids[i]]]
+    #         }
+    #     })
+
+
     for i in keep:
         x1, y1, x2, y2 = bboxes_xyxy[i]
-        x1 /= (input_size[1] / scale)
-        y1 /= (input_size[0] / scale)
-        x2 /= (input_size[1] / scale)
-        y2 /= (input_size[0] / scale)
+
+        x1 = x1 / scale
+        x2 = x2 / scale
+        y1 = y1 / scale
+        y2 = y2 / scale
 
         width = x2 - x1
         height = y2 - y1
 
-        results.append({
+        cls_id = cls_ids[i]
+        label = class_names[cls_id]
+
+        logger.debug(f"[POST] Box {i}: class_id={cls_id}, label={label}, conf={cls_conf[i]:.3f}, box=({x1:.1f}, {y1:.1f}, {x2:.1f}, {y2:.1f})")
+
+        # 🧪 Safety check
+        if label not in class_names:
+            logger.error(f"[MISMATCH] Label '{label}' not in class_names list! (Index {cls_id})")
+
+        result = {
             "from_name": "label",
             "to_name": "image",
             "type": "rectanglelabels",
@@ -133,12 +178,14 @@ def postprocess_yolox_output(boxes, scores, conf_thres, nms_thres, class_names, 
                 "y": y1 / h_orig * 100,
                 "width": width / w_orig * 100,
                 "height": height / h_orig * 100,
-                "rectanglelabels": [class_names[cls_ids[i]]]
+                "rectanglelabels": [label]
             }
-        })
+        }
+
+        logger.debug(f"[POST] Final result payload: {result}")
+        results.append(result)
 
     return results
-
 
 
 
@@ -147,11 +194,15 @@ class YOLOBackend(LabelStudioMLBase):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.class_names = list("SWTZUOPHJKBXYR")
+        #self.class_names = list("SWTZUOPHJKBXYR")
+        self.class_names = [
+            "B", "H", "J", "K", "O", "P", "R",
+            "S", "T", "U", "W", "X", "Y", "Z"
+        ]
         self.model = self.load_model()
 
     def load_model(self):
-        model_path = os.getenv("YOLOX_MODEL_PATH", "letters_yolox_608nano3.2.onnx")
+        model_path = os.getenv("YOLOX_MODEL_PATH", "letters_yolox_fewshot1.6.onnx")
         logger.info(f"Loading YOLOX ONNX model from {model_path}")
         return ort.InferenceSession(model_path)
 
@@ -192,7 +243,7 @@ class YOLOBackend(LabelStudioMLBase):
                 boxes, scores = decode_output(output)
                 regions = postprocess_yolox_output(
                     boxes, scores,
-                    conf_thres=0.25,
+                    conf_thres=0.4,
                     nms_thres=0.45,
                     class_names=self.class_names,
                     scale=scale,
@@ -200,12 +251,14 @@ class YOLOBackend(LabelStudioMLBase):
                     input_size=(608, 1280)  # or define as self.input_size if class-based
                 )
 
-                for r in regions:
-                    print(
-                        f"[DEBUG] Detection: {r['value']['rectanglelabels'][0]} @ {r['value']} score={r['score']:.2f}")
+                # for r in regions:
+                #     print(
+                #         f"[DEBUG] Detection: {r['value']['rectanglelabels'][0]} @ {r['value']} score={r['score']:.2f}")
 
                 if not regions:
                     logger.warning(f"No detections found for task {task.get('id')}")
+
+
 
                 predictions.append({
                     "model_version": "yolox-onnx",
